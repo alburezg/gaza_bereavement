@@ -7,6 +7,7 @@ rm(list=ls())
 library(tidyverse)
 library(ungroup)
 library(DemoTools)
+library(data.table)
 
 # This scripts gets mx from the models ran by Ana for the PopHealthMetrics paper
 # for Gaza and combines it with pop data forecasted by Ugo to estimate numbers
@@ -14,35 +15,7 @@ library(DemoTools)
 # Mx estimates are given for various models and LC forecasts for UN and PCBS data. 
 # For now, just take UN model and PCBS-data forecast as an example. 
 
-# 1. Get mx ----
-
-# De Ana:
-# Ya los decifré, las tasas de mortalidad están en los archivos que se llaman 
-# “XXXXXXXX_lifetable_f_le0.csv”. Estos archivos estan en “R\model\diff_reporting\samples\...”
-# Las tasas de mortalidad aparecen en las columnas que se llama X1 – X18 (o de
-# la columna 3 a la 20, depende como lo veas). Cada columna corresponde a una
-# edad (las edades son c(0,1,seq(5,80,5)) y cada renglón a una simulación.
-# Entonces para obtener el promedio de las tasas tienes que obtener el promedio
-# de cada columna, y eso te va a dar la tasa de mortalidad promedio para cada
-# edad.
-# Repo: 
-# https://github.com/realirena/uncertainty_quantification/tree/main/R/model/diff_reporting/samples
-
-# Functino to transform data
-get_mx <- function(df, sex = "m", ages = c(0,1,seq(5,80,5)), year = 2023){
-  
-  cols_keep <- c(paste0("X", seq(1,18)))
-  
-  df %>%
-    select(any_of(cols_keep)) %>%
-    summarise(across(everything(), mean)) %>% 
-    pivot_longer(everything(), names_to = "age", values_to = "mx_model") %>%
-    mutate(
-      age = ages
-      , sex = sex
-      , year = year
-    )
-}
+# Functions -----
 
 # From Kike
 ung_age <- function(chunk){
@@ -69,73 +42,29 @@ ung_age <- function(chunk){
   return(out)
 }
 
+# 1. Get mx ----
+
+# The ASMR come from this Repo: 
+# https://github.com/realirena/uncertainty_quantification/tree/main/R/model/diff_reporting/samples
+
+# And were extracted by a script prepared bi kike on 20250903
+
 # Get data ====
 
-ages <- c(0,1,seq(5,80,5))
+# ages <- c(0,1,seq(5,80,5))
 
-if(file.exists("data/un_conflict23_lifetable_f_le0.csv")){
-  mx <-
-    read.csv("data/un_conflict23_lifetable_f_le0.csv", stringsAsFactors = FALSE) %>%
-    get_mx(sex = "f", ages, year = 2023) %>%
-    bind_rows(
-      read.csv("data/un_conflict24_lifetable_f_le0.csv", stringsAsFactors = FALSE) %>%
-        get_mx(sex = "f", ages, year = 2024)
-    ) %>%
-    bind_rows(
-      read.csv("data/un_conflict23_lifetable_m_le0.csv", stringsAsFactors = FALSE) %>%
-        get_mx(sex = "m", ages, year = 2023)
-    ) %>%
-    bind_rows(
-      read.csv("data/un_conflict24_lifetable_m_le0.csv", stringsAsFactors = FALSE) %>%
-        get_mx(sex = "m", ages, year = 2024)
-    ) %>%
-    bind_rows(
-      read.csv("data/un_conflict23_lifetable_t_le0.csv", stringsAsFactors = FALSE) %>%
-        get_mx(sex = "t", ages, year = 2023)
-    ) %>%
-    bind_rows(
-      read.csv("data/un_conflict24_lifetable_t_le0.csv", stringsAsFactors = FALSE) %>%
-        get_mx(sex = "t", ages, year = 2024)
-    ) %>%
-    mutate(region = "Gaza Strip")
-} else {
-  # Read from internet
-  # Base URL for the raw files on GitHub
-  base_url <- "https://raw.githubusercontent.com/realirena/uncertainty_quantification/main/R/model/diff_reporting/samples/gaza/"
-  
-  # Create a data frame that lists each file and its corresponding parameters (sex and year)
-  files_to_process <- tibble::tribble(
-    ~filename,                             ~sex, ~year,
-    "un_conflict23_lifetable_f_le0.csv",   "f",  2023,
-    "un_conflict24_lifetable_f_le0.csv",   "f",  2024,
-    "un_conflict23_lifetable_m_le0.csv",   "m",  2023,
-    "un_conflict24_lifetable_m_le0.csv",   "m",  2024,
-    "un_conflict23_lifetable_t_le0.csv",   "t",  2023,
-    "un_conflict24_lifetable_t_le0.csv",   "t",  2024
-  )
-  
-  # Read and process all files
-  # We use pmap_dfr to iterate over each row of the 'files_to_process' data frame.
-  # For each file, it constructs the full URL, reads the CSV, and processes it.
-  # The results are automatically combined into a single data frame called 'mx'.
-  mx <- pmap_dfr(files_to_process, function(filename, sex, year) {
-    
-    # Construct the full URL for the raw CSV file
-    full_url <- paste0(base_url, filename)
-    
-    # Read the data and process it
-    read.csv(full_url, stringsAsFactors = FALSE) %>%
-      get_mx(sex = sex, ages = ages, year = year)
-    
-  }) %>%
-    # Add the region column at the end
-    mutate(region = "Gaza Strip")
-}
+mx <- 
+  read.csv("data/irena_rates_mean.csv", stringsAsFactors = F) %>% 
+  mutate(region = "Gaza Strip") %>% 
+  filter(cause == "conflict") %>% 
+  select(-cause) %>% 
+  rename(mx_model = mx_m)
 
 mx %>% 
-  ggplot(aes(age, mx_model, colour = sex)) +
-  facet_wrap(~year) +
-  geom_line() +
+  ggplot(aes(x = age, y = mx_model, group = sex)) +
+  geom_line(linewidth = 1, col = "red")+
+  scale_y_log10()+
+  facet_grid(year~sex)+
   theme_bw()
 
 # 2. Get number of deaths ----
@@ -146,7 +75,7 @@ mx %>%
 
 # Use PCBS population for now (not sure what WPP population for Gaza is)
 
-if(file.exists("data/un_conflict23_lifetable_f_le0.csv")){
+if(file.exists("data/data_plus_forecasts_v2.rds")){
   dat <- readRDS("data/data_plus_forecasts_v2.rds")
 } else {
   dat <- readRDS(url("https://raw.githubusercontent.com/realirena/uncertainty_quantification/main/R/lc/data_plus_forecasts_v2.rds"))
@@ -173,15 +102,14 @@ dts <-
 
 # Check if numbers make sense
 dts %>% 
-  filter(sex %in% "t") %>%
   pull(dx) %>%
   sum()
 
-# Deaths are consistent over sexes
+# Deaths over sexes
 dts %>% 
   ggplot(aes(x = age, y = dx, fill = sex)) +
   geom_area(data = . %>% filter(sex != "t")) +
-  geom_line(data = . %>% filter(sex == "t"), size = 1) +
+  # geom_line(data = . %>% filter(sex == "t"), size = 1) +
   facet_wrap(~year) +
   theme_bw()
 
@@ -191,7 +119,6 @@ dts %>%
 
 dts2 <- 
   dts %>% 
-  filter(sex != "t") %>% 
   group_by(year, sex) %>% 
   do(ung_age(chunk = .data)) %>% 
   ungroup() 
