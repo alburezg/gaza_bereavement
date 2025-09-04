@@ -38,6 +38,7 @@ cnf_kin <-
 
 kin <- 
   kin_full %>% 
+  # filter(kin != "c") %>%
   filter(year %in% y_keep) %>% 
   rename(sex = sex_focal, age = age_focal)
 
@@ -62,7 +63,7 @@ brv <-
 
 pop <- 
   dts %>% 
-  filter(year == 2024) %>% 
+  filter(year == 2024) %>%
   select(-mx)
 
 # accumulation of bereavement risk over time 
@@ -73,21 +74,18 @@ pop <-
 
 brv_cum <- 
   brv %>% 
-  select(year, sex, age, kin, p0_dt) %>% 
+  select(year, sex, age, kin, p0 = p0_dt) %>% 
   mutate(cohort = year - age) %>% 
-  gather(p0_dt, key = type, value = p0) %>% 
-  mutate(type = case_when(type == "p0_dt" ~ "dts")) %>% 
-  arrange(kin, type, cohort, sex, age) %>% 
-  group_by(sex, cohort, kin, type) %>% 
+  arrange(kin, cohort, sex, age) %>% 
+  group_by(sex, cohort, kin) %>% 
   arrange(age) %>% 
   mutate(p0_cum = cumprod(p0)) %>% 
   ungroup() 
 
-
-# persons bereaved by the conflict in 2018
+# persons bereaved by the conflict in 2024
 brv_pop <- 
   brv_cum %>%
-  # filter(year == 2018) %>% 
+  filter(year == 2024) %>%
   left_join(pop) %>% 
   mutate(q0_cum = 1 - p0_cum,
          b_per = q0_cum * pop)
@@ -120,7 +118,7 @@ brv_ext <-
 
 brv_ncl <- 
   brv_cum %>% 
-  filter(kin %in% c("c", "m", "s")) %>% 
+  filter(kin %in% c("d", "m", "s")) %>% 
   filter(year == 2024) %>%
   reframe(p0_cum = prod(p0_cum),
           .by = c(age, sex, cohort)) %>% 
@@ -146,9 +144,6 @@ kable(brv_all)
 
 # 3. Diagnosis -----
 
-
-# Plot ----
-
 # Age pyramid of deaths
 
 dts %>% 
@@ -171,12 +166,34 @@ dts %>%
   coord_flip() +
   theme_bw()
 
-# prob of having a living mother over age
+# prob of having a living kin over age
 
-kin_full %>% 
-  filter(kin == "m") %>% 
-  summarise(value = sum(living), .by = c(kin, age_focal, year, sex_kin)) %>% 
-  ggplot(aes(x = age_focal, y = value, colour = sex_kin)) +
+kin_keep <- c("d", "c", "a", "gd", "s", "n")
+
+kp <- 
+  kin_full %>% 
+  filter(
+    kin %in% kin_keep
+    , year == 2024
+  ) %>% 
+  rename_kin("2sex")
+
+kp2 <- 
+  kp %>% 
+  summarise(value = sum(living), .by = c(kin_label, age_focal, year)) %>% 
+  mutate(name = "1. Number of living kin")
+
+# mean age of kin over age
+kp3 <- 
+  kp %>% 
+  summarise(
+    value = sum(age_kin*living)/sum(living)
+    , .by = c(age_focal, year, kin_label)
+  ) %>% 
+  mutate(name = "2. Mean age of Kin")
+
+bind_rows(kp2, kp3) %>% 
+  ggplot(aes(x = age_focal, y = value, colour = kin_label)) +
   geom_line() +
-  facet_wrap(~year) +
+  facet_wrap(~name) +
   theme_bw()
