@@ -56,7 +56,11 @@ ung_age <- function(chunk){
 mx <- 
   read.csv("data/irena_rates_mean.csv", stringsAsFactors = F) %>% 
   mutate(region = "Gaza Strip") %>% 
-  filter(cause == "conflict") %>% 
+  filter(
+    cause == "conflict"
+    , source == "moh"
+    ) %>%
+    # filter(cause == "all") %>% 
   select(-cause) %>% 
   rename(mx_model = mx_m)
 
@@ -91,7 +95,7 @@ dts <-
     # Using PBCS LC projections for now
     , source == "pcbs"
   )  %>% 
-  left_join(mx) %>% 
+  left_join(mx, by = c("region", "year", "sex", "age")) %>% 
   filter(!is.na(mx_model)) %>% 
   # Estimate deaths
   mutate(
@@ -102,8 +106,7 @@ dts <-
 
 # Check if numbers make sense
 dts %>% 
-  pull(dx) %>%
-  sum()
+  summarise(dx = sum(dx), .by = year)
 
 # Deaths over sexes
 dts %>% 
@@ -132,7 +135,11 @@ comp <-
   reframe(dx1 = sum(dx),
           dx2 = sum(dx2),
           .by = c(year, sex, age)) %>% 
-  left_join(dts) %>% 
+  left_join(
+    dts %>% 
+      mutate(age = ifelse(age == 1, 0, age)) %>% 
+      summarise(dx = sum(dx), .by = c(year, sex, age))
+  ) %>% 
   select(year, sex, age, dx1, dx2, original = dx) %>%
   pivot_longer(cols = c(dx1, dx2, original))
 
@@ -160,8 +167,6 @@ dts3 <-
   ungroup() %>% 
   select(year, sex, age, dx) %>% 
   mutate(dx = round(dx, 5))
-
-# Not very happy with this, but just for testing purposes it will do.
 
 # 4. Ungroup pop -----
 
@@ -194,7 +199,11 @@ comp <-
   reframe(dx1 = sum(dx),
           dx2 = sum(dx2),
           .by = c(year, sex, age)) %>% 
-  left_join(pop) %>% 
+  left_join(
+    pop %>% 
+      mutate(age = ifelse(age == 1, 0, age)) %>% 
+      summarise(dx = sum(dx), .by = c(year, sex, age))
+    ) %>% 
   select(year, sex, age, dx1, dx2, original = dx) %>%
   pivot_longer(cols = c(dx1, dx2, original))
 
@@ -204,53 +213,52 @@ comp %>%
   facet_wrap(~sex+year) +
   theme_bw()
 
+# Sum to same pop?
+comp %>% 
+  summarise(value = sum(value), .by = c(name))
+
 # scaling ungrouped deaths to grouped values
-pop3 <- 
-  pop2 %>% 
-  mutate(age2 = age - age%%5,
-         age2 = ifelse(age2 >=80, 80, age2)) %>% 
-  group_by(year, sex, age2) %>% 
-  mutate(dx_sum = sum(dx)) %>% 
-  left_join(
-    pop %>% 
-      rename(age2 = age, dx_grp = dx)
-  ) %>% 
-  mutate(adj_fc = dx_grp/dx_sum,
-         dx = dx * adj_fc,
-         dx_sum = sum(dx),
-         diff = dx_grp - dx_sum) %>% 
-  ungroup() %>% 
-  select(year, sex, age, dx) %>% 
-  mutate(dx = round(dx, 5))
+# pop3 <- 
+#   pop2 %>% 
+#   mutate(age2 = age - age%%5,
+#          age2 = ifelse(age2 >=80, 80, age2)) %>% 
+#   group_by(year, sex, age2) %>% 
+#   mutate(dx_sum = sum(dx)) %>% 
+#   left_join(
+#     pop %>% 
+#       rename(age2 = age, dx_grp = dx)
+#   ) %>% 
+#   mutate(adj_fc = dx_grp/dx_sum,
+#          dx = dx * adj_fc,
+#          dx_sum = sum(dx),
+#          diff = dx_grp - dx_sum) %>% 
+#   ungroup() %>% 
+#   select(year, sex, age, dx) %>% 
+#   mutate(dx = round(dx, 5))
 
 # Test
 
-comp2 <- 
-  pop3 %>% 
-  mutate(name = "scaled") %>% 
-  rename(value = dx) %>%
-  bind_rows(comp) 
+# comp2 <- 
+#   pop3 %>% 
+#   mutate(name = "scaled") %>% 
+#   rename(value = dx) %>%
+#   bind_rows(comp) 
 
-comp2 %>% 
-  ggplot(aes(x = age, y = value, colour = name)) +
-  geom_line() +
-  facet_wrap(~sex+year) +
-  theme_bw()
+# comp2 %>% 
+#   ggplot(aes(x = age, y = value, colour = name)) +
+#   geom_line() +
+#   facet_wrap(~sex+year) +
+#   theme_bw()
 
-# Sum to same pop?
-comp2 %>% 
-  summarise(value = sum(value), .by = c(name))
-
-
-pop4 <- 
-  pop3 %>% 
+pop3 <- 
+  pop2 %>% 
   rename(pop = dx)
 
 # 5. Get rates -----
 
 dts4 <- 
   dts3 %>% 
-  left_join(pop4) %>% 
+  left_join(pop3) %>% 
   mutate(mx = dx/pop)
 
 # Export deaths ----

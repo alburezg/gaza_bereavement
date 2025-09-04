@@ -4,6 +4,7 @@ rm(list = ls())
 library(tidyverse)
 library(data.table)
 library(DemoKin)
+library(knitr)
 
 # 1. Load data ------
 
@@ -141,6 +142,41 @@ brv_all <-
   mutate(b_per_perc = round(b_per / pop2024 * 100)) %>% 
   select(kin, bereaved = b_per, bereaved_perc = b_per_perc)
 
-library(knitr)
-
 kable(brv_all)
+
+# 3. Diagnosis -----
+
+
+# Plot ----
+
+# Age pyramid of deaths
+
+dts %>% 
+  mutate(value = ifelse(sex == "f", -dx, dx)) %>% 
+  ggplot(aes(x = age, y = value, fill = sex)) +
+  geom_col() +
+  facet_wrap(~year) +
+  coord_flip() +
+  theme_bw()
+
+# Cumulative deaths, starting at 0
+dts %>% 
+  group_by(year, sex) %>%
+  mutate(dx = cumsum(dx)) %>% 
+  mutate(value = ifelse(sex == "f", -dx, dx)) %>% 
+  ungroup() %>%
+  ggplot(aes(x = age, y = value, fill = sex)) +
+  geom_col() +
+  facet_wrap(~year) +
+  coord_flip() +
+  theme_bw()
+
+# prob of having a living mother over age
+
+kin_full %>% 
+  filter(kin == "m") %>% 
+  summarise(value = sum(living), .by = c(kin, age_focal, year, sex_kin)) %>% 
+  ggplot(aes(x = age_focal, y = value, colour = sex_kin)) +
+  geom_line() +
+  facet_wrap(~year) +
+  theme_bw()
