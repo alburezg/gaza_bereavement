@@ -14,6 +14,9 @@ source("R/UNWPP_data.R")
 start_year <- 1950
 end_year <- 2023
 
+# For DemoKin
+output_period <- 2023
+
 rates_f <- 
   UNWPP_data(
     country = "State of Palestine"
@@ -21,6 +24,14 @@ rates_f <-
     , end_year = end_year
     , sex = "Female"
     )
+
+rates_m <- 
+  UNWPP_data(
+    country = "State of Palestine"
+    , start_year =  start_year
+    , end_year = end_year
+    , sex = "Male"
+  )
 
 pop_f <- UNWPP_pop(
   country = "State of Palestine"
@@ -77,27 +88,27 @@ kin_out <-
   nf = pop_f,
   nm = pop_m,
   output_kin = c("c", "d", "gd", "gm", "m", "n", "a", "s"),
+  # output_period = output_period,
   time_invariant = F,
   sex_focal = "f",
   )
 
-# kin_out$kin_summary %>%
-#   filter(year == 2023) %>% 
-#   rename_kin(sex = "2sex") %>% 
-#   ggplot(aes(age_focal, count_living, fill=sex_kin))+
-#   geom_area()+
-#   theme_bw() +
-#   labs(y = "Expected number of living kin by sex and Focal's age",
-#        x = "Age of Focal",
-#        fill = "Sex of Kin") +
-#   facet_wrap(~kin_label)
+kin_out$kin_summary %>%
+  # filter(year %in% y_keep) %>%
+  rename_kin(sex = "2sex") %>%
+  ggplot(aes(age_focal, count_living, fill=sex_kin))+
+  geom_area()+
+  theme_bw() +
+  labs(y = "Expected number of living kin by sex and Focal's age",
+       x = "Age of Focal",
+       fill = "Sex of Kin") +
+  facet_wrap(~kin_label)
 
 # Save kin_full only
 
 kin_full <- 
   kin_out$kin_full %>% 
   mutate(sex_focal ="f") %>% 
-  filter(year >= 2023)
+  filter(year == output_period)
 
-# save(kin_full, file = "data_int/kin_full.rdata")
 fwrite(kin_full, "data_int/kin_full.csv", row.names = FALSE)

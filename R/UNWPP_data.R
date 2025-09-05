@@ -1,7 +1,7 @@
 # Function to load and filter UN World Population Prospects data for mortality (px) and fertility (fx)
 
 UNWPP_data <-
-  function(country, start_year, end_year, sex, dir = "../__data/wpp2024/") {
+  function(country, start_year, end_year, sex, dir = "../../__data/wpp2024/") {
   
   # dir <- "../__data/wpp2024/"
     
@@ -54,7 +54,7 @@ UNWPP_data <-
 # Function to load and filter UN World Population Prospects data for population (N)
 
 UNWPP_pop <-
-  function(country_name, start_year, end_year, sex, dir = "../__data/wpp2024/") {
+  function(country_name, start_year, end_year, sex, dir = "../../__data/wpp2024/") {
   
   # Read in population data
   WPP2024_pop <- 
