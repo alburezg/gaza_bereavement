@@ -8,6 +8,7 @@ library(tidyverse)
 library(ungroup)
 library(DemoTools)
 library(data.table)
+library(knitr)
 
 # This scripts gets mx from the models ran by Ana for the PopHealthMetrics paper
 # for Gaza and combines it with pop data forecasted by Ugo to estimate numbers
@@ -106,7 +107,21 @@ dts <-
 
 # Check if numbers make sense
 dts %>% 
-  summarise(dx = sum(dx), .by = year)
+  summarise(dx = sum(dx), .by = year) %>% 
+  mutate(year = as.character(year)) %>% 
+  bind_rows(
+    dts %>% 
+      summarise(dx = sum(dx)) %>% 
+      mutate(year = "Total")
+  ) %>% 
+  kable()
+
+# Deaths over age and sex
+dts %>% 
+  summarise(dx = sum(dx), .by = c(year, age)) %>% 
+  mutate(year = as.character(year)) %>% 
+  pivot_wider(names_from = year, values_from = dx) %>% 
+  kable()
 
 # Deaths over sexes
 dts %>% 

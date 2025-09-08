@@ -94,7 +94,7 @@ kin_out <-
   )
 
 kin_out$kin_summary %>%
-  # filter(year %in% y_keep) %>%
+  filter(year %in% 2023) %>%
   rename_kin(sex = "2sex") %>%
   ggplot(aes(age_focal, count_living, fill=sex_kin))+
   geom_area()+
@@ -103,6 +103,23 @@ kin_out$kin_summary %>%
        x = "Age of Focal",
        fill = "Sex of Kin") +
   facet_wrap(~kin_label)
+
+# Cousins over time
+
+kin_out$kin_summary %>%
+  filter(
+    age_focal %in% c(0, 25, 50, 75)
+    , kin == "c"
+    ) %>%
+  rename_kin(sex = "2sex") %>%
+  summarise(count_living = sum(count_living), .by = c(year, age_focal, year)) %>% 
+  ggplot(aes(year, count_living, linetype=as.factor(age_focal)))+
+  geom_line()+
+  theme_bw() +
+  labs(y = "Expected number of living kin by sex and Focal's age",
+       x = "Age of Focal",
+       fill = "Sex of Kin")
+  # facet_wrap(~kin_label)
 
 # Save kin_full only
 
